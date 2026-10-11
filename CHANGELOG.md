@@ -1,5 +1,12 @@
 # Changelog
 
+## v3 (2026-10-11)
+
+First release from this repo. Same kit content as past_blast-v2, plus:
+- README header describing the repo layout and the external `dosbox-x-dbg` dependency
+- `scripts/smoke.sh` (syntax and self-tests) and a CI workflow running it
+- `scripts/release.sh` to build the release tarball from the tracked files
+
 ## past_blast-v2 (2026-10-11)
 
 Imported verbatim from the release asset `past_blast-v2-20261011-12d0816.tar.gz`
