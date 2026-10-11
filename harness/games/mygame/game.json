@@ -1,0 +1,80 @@
+{
+ "game": "mygame",
+ "cycles": 20000,
+ "load_segment": "0x0000",
+ "comment": "TEMPLATE. Fill in blind, in this order (workflow.md section 7): load segment, frame hook, key table + last-scan word, state fields (ref.state.json), start-up recipe, align.write. Every value gets a 'how' string saying how it was found. Optional keys: video ('ega' default | 'vga'), data_files (md5'd into run manifests), exe.hook_from_start (set the frame-hook breakpoint before the program starts: the first hit is the first frame of the level, independent of wall-clock menu timing), exe.boot_patches ([{bp:'seg:off', expect:hex, write:[[seg:off, hexbytes]], why}]: patch the running program once, e.g. NOP the clock-derived RNG seed), replay.other_segments (Ghidra segment -> runtime segment for data outside DGROUP).",
+ "exes": {
+  "ref": {
+   "path": "vendor/run/GAME.EXE",
+   "md5": "",
+   "rundir": "vendor/run",
+   "dos_cmd": "GAME.EXE",
+   "state_map": "ref.state.json",
+   "frame_hook": {
+    "cs": "0x0000",
+    "ip": "0x0000",
+    "ds": "0x0000",
+    "signature": "",
+    "what": "",
+    "how_found": ""
+   },
+   "hook_from_start": false,
+   "boot_patches": []
+  }
+ },
+ "keyboard": {
+  "how_found": "",
+  "addr": "0x0000",
+  "stride": 2,
+  "scancodes": {
+   "Up": 72,
+   "Down": 80,
+   "Left": 75,
+   "Right": 77,
+   "ctrl": 29,
+   "alt": 56,
+   "space": 57,
+   "Return": 28,
+   "Escape": 1
+  },
+  "last_scan": "0x0000",
+  "last_scan_how": ""
+ },
+ "startups": {
+  "level1": {
+   "note": "",
+   "steps": [
+    [
+     "wait",
+     10
+    ]
+   ],
+   "expect": {}
+  }
+ },
+ "replay": {
+  "comment": "Per-game data for replay.py/capture.py. Paths relative to the repo root.",
+  "functions_csv": "analysis/functions.csv",
+  "globals_csv": "analysis/globals.csv",
+  "structs_h": "analysis/structs.h",
+  "decomp_dir": "analysis/decomp",
+  "ghidra_dir": "analysis/decomp/ghidra_typed",
+  "tweaks_dir": "harness/games/mygame/replay",
+  "ghidra_ds": "0x0000",
+  "struct_sizes": {},
+  "struct_guard": "STRUCTS_H",
+  "csv_types": {},
+  "label_types": {},
+  "async_mask": [
+   [
+    "abs",
+    "0x46c",
+    "0x470",
+    "BIOS tick"
+   ]
+  ],
+  "other_segments": {}
+ },
+ "video": "ega",
+ "data_files": []
+}

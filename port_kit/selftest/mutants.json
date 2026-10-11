@@ -1,0 +1,30 @@
+{
+ "src": ".",
+ "cmd": [
+  "node",
+  "../js/oracle.mjs",
+  "adapter.mjs",
+  "{ref}",
+  "{scenario}"
+ ],
+ "oracles": [
+  {
+   "ref": "toy.jsonl",
+   "scenario": "toy.txt"
+  }
+ ],
+ "mutants": [
+  {
+   "name": "speed",
+   "file": "toy.js",
+   "old": "2 * tics",
+   "new": "3 * tics"
+  },
+  {
+   "name": "noop",
+   "file": "toy.js",
+   "old": "x + 2",
+   "new": "2 + x"
+  }
+ ]
+}

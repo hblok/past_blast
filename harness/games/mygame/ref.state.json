@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "exe": "ref",
+  "seg": "0x0000",
+  "seg_how": "DS register at the frame hook (EV DS)",
+  "fields": {
+    "tick": {"addr": "0x0000", "type": "u32", "tolerant": true, "how": "the counter compared in the tick-wait hot loop"}
+  },
+  "clock_lock": {"counter": "tick", "saved": "tick_saved", "why": "see harness/README.md and LESSONS (determinism): write counter := saved copy at every hook"},
+  "compare_mask": {},
+  "align": {"field": "page", "value": 0, "max": 3, "why": "", "clock_base": 65536, "write": []}
+}

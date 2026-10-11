@@ -1,0 +1,85 @@
+<!doctype html>
+<meta charset="utf-8"><title>Wolf3D port</title>
+<style>body{background:#111;color:#ddd;font:14px monospace;margin:1em;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 2em)}canvas{image-rendering:pixelated;border:1px solid #444}#c{width:960px;max-width:100%}
+#dbg{display:none;margin-top:.5em}#dbg.on{display:flex;gap:1em;flex-wrap:wrap;align-items:flex-start;justify-content:center}#dbg button,#dbg select{font:inherit;margin:0 .2em .3em 0}#dbg pre{margin:.3em 0}</style>
+<canvas id="c" width="320" height="200"></canvas>
+<div id="dbg"><canvas id="map" width="256" height="256"></canvas><div>
+ <b>debug</b> (` toggles) <select id="lv"></select><br>
+ <button data-d="ammo">ammo 99</button><button data-d="health">health 100</button><button data-d="life">+1 life</button><button data-d="keys">keys</button><button data-d="weapons">all weapons</button><button data-d="sound">sound: on</button><button data-d="music">music: on</button><button data-d="god">god: off</button><button data-d="kill">kill all</button><button data-d="exit">finish level</button>
+ <pre id="stat"></pre></div></div>
+<script type="module">
+import { decodeLevel } from "./src/map.js"; import { parseVswap } from "./src/vswap.js"; import { render } from "./src/render.js"; import { Session } from "./src/session.js"; import { openVgagraph } from "./src/vgagraph.js"; import { drawHud } from "./src/hud.js"; import { Menu } from "./src/menu.js"; import { Sfx } from "./src/audio.js"; import { MUS, LEVELSONGS } from "./src/sound_data.js";
+const get = f => fetch("../vendor/ref/" + f).then(r => r.arrayBuffer());
+const [head, maps, swap, vgag, vgah, vgad, audh, audt] = await Promise.all(["MAPHEAD.WL6", "GAMEMAPS.WL6", "VSWAP.WL6", "VGAGRAPH.WL6", "VGAHEAD.WL6", "VGADICT.WL6", "AUDIOHED.WL6", "AUDIOT.WL6"].map(get)), vg = openVgagraph(vgag, vgah, vgad);
+const pal = await (await fetch("palette.json")).json(), rt = await (await fetch("rndtable.json")).json(), vs = parseVswap(swap), sfx = new Sfx(vs, audh, audt);
+const $ = id => document.getElementById(id), sel = $("lv"), dbg = $("dbg"), mapc = $("map").getContext("2d"), ctx = document.getElementById("c").getContext("2d"), img = ctx.createImageData(320, 160);
+for (let l = 0; l < 100; l++) { const m = decodeLevel(head, maps, l); if (m) sel.add(new Option(`${l}: ${m.name}`, l)); }
+let S, game, keys = {}, diff = 2, mode = "menu";   // the game starts at the pre-game screens
+const menu = new Menu(vg), full = ctx.createImageData(320, 200), menuIdx = new Uint8Array(320 * 200);
+function fresh(level, keyflags = 0) { S = new Session(head, maps, rt, { level, difficulty: diff, keys: keyflags, randomize: true }); game = S.game; sel.selectedIndex = [...sel.options].findIndex(o => +o.value === level); mode = "game"; }
+sel.onchange = () => { sel.blur();   // warp, keeping health / ammo / score / weapons
+  const g = game.w.gs; S.carry = { health: g.health, ammo: g.ammo, score: g.score, lives: g.lives, nextextra: g.nextextra, bestweapon: g.bestweapon, weapon: g.weapon, chosenweapon: g.chosenweapon };
+  const keep = game.w.keys; S.begin(+sel.value); game = S.game; game.w.keys = keep; mode = "game";
+};
+dbg.onclick = e => {
+  const d = e.target.dataset.d, w = game.w, g = w.gs; if (!d) return; e.target.blur();
+  if (d === "ammo") g.ammo = 99; else if (d === "health") g.health = 100; else if (d === "life") g.lives = Math.min(9, g.lives + 1); else if (d === "keys") w.keys = 3;
+  else if (d === "weapons") { g.bestweapon = 3; g.ammo = Math.max(g.ammo, 99); }
+  else if (d === "sound") { sfx.enabled = !sfx.enabled; e.target.textContent = "sound: " + (sfx.enabled ? "on" : "off"); }
+  else if (d === "music") e.target.textContent = "music: " + (sfx.toggleMusic() ? "on" : "off");
+  else if (d === "god") { w.god = !w.god; e.target.textContent = "god: " + (w.god ? "on" : "off"); }
+  else if (d === "kill") for (const ob of game.actors.list) if (!ob.removed && ob.flags & 1) game.actors.damageActor(ob, 9999);
+  else if (d === "exit") w.exit = "completed";
+};
+function debugPanel() {   // map overlay: walls, doors, items, enemies, the player and its heading, 4 px per tile
+  const w = game.w, A = game.actors, p = game.pl, k = 4; mapc.fillStyle = "#000"; mapc.fillRect(0, 0, 256, 256);
+  for (let y = 0; y < w.h; y++) for (let x = 0; x < w.w; x++) { const t = w.tilemap[y * w.w + x]; if (!t) continue; mapc.fillStyle = t & 0x80 ? "#fc0" : t & 0x4000 ? "#c60" : "#667"; mapc.fillRect(x * k, y * k, k, k); }
+  mapc.fillStyle = "#4f4"; for (const s of w.statics) if (s.bonus || s.kind) mapc.fillRect(s.x * k + 1, s.y * k + 1, 2, 2);
+  for (const o of A.list) if (!o.removed) { mapc.fillStyle = o.flags & 1 ? "#f33" : "#833"; mapc.fillRect((o.x / 65536) * k - 1.5, (o.y / 65536) * k - 1.5, 3, 3); }
+  const px = p.x / 65536 * k, py = p.y / 65536 * k, a = p.angle * Math.PI / 180; mapc.fillStyle = "#fff"; mapc.fillRect(px - 2, py - 2, 4, 4);
+  mapc.strokeStyle = "#fff"; mapc.beginPath(); mapc.moveTo(px, py); mapc.lineTo(px + Math.cos(a) * 10, py - Math.sin(a) * 10); mapc.stroke();
+  const g = w.gs; $("stat").textContent = `level ${S.level}  tile ${p.x >> 16},${p.y >> 16}  angle ${p.angle}\nhealth ${g.health} ammo ${g.ammo} lives ${g.lives} score ${g.score}\nlast hit: ${w.lastShot || "-"}\nkills ${A.kills}/${A.killtotal}  secrets ${w.secrets}/${w.secrettotal}  treasure ${g.treasure}/${w.treasuretotal}`;
+}
+S = new Session(head, maps, rt, { level: 0, difficulty: diff, randomize: true }); game = S.game;
+const MENUKEY = { ArrowUp: "up", ArrowDown: "down", Enter: "enter", " ": "enter", Escape: "esc" };
+let gun = 0;
+function menuKey(k) {   // menu sounds as in WL_MENU.C: cursor = MOVEGUN1/2, select = SHOOTSND, back = ESCPRESSEDSND
+  const was = menu.screen; sfx.start();
+  if (k === "up" || k === "down") sfx.play({ name: ++gun & 1 ? "MOVEGUN1SND" : "MOVEGUN2SND" }); else if (k === "esc" && was !== "title" && was !== "pg13") sfx.play({ name: "ESCPRESSEDSND" }); else if (k === "enter" && was !== "title" && was !== "pg13") sfx.play({ name: "SHOOTSND" });
+  const r = menu.key(k); if (!r) return;
+  if (r.resume) mode = "game"; else if (r.start) { diff = r.start.difficulty; fresh(r.start.episode * 10, 0); }
+}
+onkeydown = e => {
+  if (/^F\d+$/.test(e.key) || e.metaKey) return;   // browser keys (F11 full screen, F5, ...) stay with the browser; Ctrl is the fire key so it cannot be excluded
+  if (mode === "menu") { if (MENUKEY[e.key]) e.preventDefault(); if (!e.repeat) menuKey(MENUKEY[e.key] || "any"); return; }
+  if (e.key === "Escape" && S.state === "playing") { menu.open(true); mode = "menu"; keys = {}; return; }
+  if (e.key === "`") { dbg.classList.toggle("on"); return; }
+  sfx.start(); keys[e.key] = 1; if (e.key.startsWith("Arrow") || e.key === " " || e.key === "Alt" || e.key === "Control") e.preventDefault(); if (e.key === "Enter" && S.state === "victory") { menu.open(false); mode = "menu"; } else if (e.key === "Enter" && S.state !== "playing") { S.next(); game = S.game; sel.selectedIndex = S.level; } };
+onkeyup = e => keys[e.key] = 0;
+const hudIdx = new Uint8Array(320 * 200), hudImg = ctx.createImageData(320, 40);
+function hud() {   // the real status bar from VGAGRAPH, drawn at its original positions
+  const g = game.w.gs; drawHud(hudIdx, 320, vg, g, game.w.keys, S.level);
+  for (let i = 0; i < 320 * 40; i++) { const c = pal[hudIdx[320 * 160 + i]]; hudImg.data.set([c[0], c[1], c[2], 255], i * 4); }
+  ctx.putImageData(hudImg, 0, 160); ctx.font = "bold 10px monospace";
+  const box = (lines, c) => { ctx.fillStyle = c; ctx.fillRect(40, 30, 240, 20 + 14 * lines.length); ctx.fillStyle = "#fff"; lines.forEach((t, i) => ctx.fillText(t, 50, 48 + 14 * i)); };
+  if (S.state === "died") box(["YOU DIED", "Enter: " + (g.lives > 0 ? "try again" : "new game")], "#a00");
+  else if (game.w.deathcam && S.state === "playing") box(["LET'S SEE THAT AGAIN!"], "#000");
+  else if (S.state === "victory") box(["EPISODE COMPLETE!", `SCORE ${g.score}`, "Enter: new game"], "#060");
+  else if (S.state === "intermission") { const r = S.result; box([`FLOOR ${r.level % 10 + 1} COMPLETED`, `TIME ${Math.floor(r.time / 60)}:${String(r.time % 60).padStart(2, "0")}  PAR ${r.par}`, `KILL ${r.kr}%  SECRET ${r.sr}%  TREASURE ${r.tr}%`, `BONUS ${r.bonus}`, "Enter: next floor"], "#00a"); }
+}
+const T = 1000 / 70; let last = performance.now(), acc = 0;   // fixed 70 Hz logic tic, 1 tic per step
+(function frame(t) {
+  acc += t - last; last = t;
+  if (mode === "menu") {
+    acc = 0; sfx.setMusic(MUS[menu.screen === "title" ? "NAZI_NOR_MUS" : "WONDERIN_MUS"]);   // title: intro song, menus: WONDERIN
+    menu.draw(menuIdx); for (let i = 0; i < 320 * 200; i++) { const c = pal[menuIdx[i]]; full.data.set([c[0], c[1], c[2], 255], i * 4); }
+    ctx.putImageData(full, 0, 0); requestAnimationFrame(frame); return;
+  }
+  sfx.setMusic(S.state === "playing" ? LEVELSONGS[S.level] : S.state === "intermission" ? MUS.ENDLEVEL_MUS : S.state === "victory" ? MUS.URAHERO_MUS : null);   // level song, bonus screen, victory; silence after death
+  for (; acc >= T; acc -= T) {
+    if (S.state === "playing") S.tick({ up: keys.ArrowUp, down: keys.ArrowDown, left: keys.ArrowLeft, right: keys.ArrowRight, run: keys.Shift, turnscale: keys.Shift ? 0.7 : 0.5, strafe: keys.Alt, fire: keys.Control, use: keys[" "], weapon: ["1", "2", "3", "4"].findIndex(k => keys[k]) + 1 });
+  }
+  for (const ev of game.w.sounds.splice(0)) sfx.play(ev, game.pl);   // events of the logic tics since the last frame
+  const p = game.pl; render(img.data, 320, 160, game.w, { x: p.x / 65536, y: p.y / 65536, a: p.angle * Math.PI / 180 }, vs, pal, S.level); ctx.putImageData(img, 0, 0); hud(); if (dbg.classList.contains("on")) debugPanel(); requestAnimationFrame(frame);
+})(last);
+</script>

@@ -1,0 +1,6 @@
+vendor/
+captures/
+runs/
+__pycache__/
+*.pyc
+core.*
